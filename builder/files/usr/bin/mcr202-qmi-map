@@ -1,0 +1,43 @@
+#!/bin/sh
+# Diagnostic helper: map the two physical MCR-202 modem slots to current
+# /dev/cdc-wdmX nodes. Device numbers can swap after modem power cycles.
+
+slot_for_path() {
+    case "$1" in
+        *1c1b000.usb*) echo 1 ;;
+        *1c1c000.usb*) echo 2 ;;
+        *) echo 0 ;;
+    esac
+}
+
+device_for_slot() {
+    want="$1"
+    for x in /sys/class/usbmisc/cdc-wdm*; do
+        [ -e "$x" ] || continue
+        p="$(readlink -f "$x/device" 2>/dev/null)"
+        [ "$(slot_for_path "$p")" = "$want" ] || continue
+        echo "/dev/$(basename "$x")"
+        return 0
+    done
+    return 1
+}
+
+case "$1" in
+    1|2)
+        device_for_slot "$1"
+        exit $?
+        ;;
+esac
+
+printf '{"map":{'
+first=1
+for x in /sys/class/usbmisc/cdc-wdm*; do
+    [ -e "$x" ] || continue
+    p="$(readlink -f "$x/device" 2>/dev/null)"
+    slot="$(slot_for_path "$p")"
+    [ "$slot" -gt 0 ] || continue
+    [ "$first" -eq 1 ] || printf ','
+    first=0
+    printf '"/dev/%s":%s' "$(basename "$x")" "$slot"
+done
+printf '}}\n'
