@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+START=15
+STOP=10
+
+set_gpio_high() {
+    n="$1"
+    d="/sys/class/gpio/gpio$n"
+
+    if [ ! -d "$d" ]; then
+        echo "$n" > /sys/class/gpio/export 2>/dev/null || true
+        sleep 1
+    fi
+
+    if [ -d "$d" ]; then
+        echo out > "$d/direction" 2>/dev/null || true
+        echo 1 > "$d/value" 2>/dev/null || true
+        logger -t mcr202 "GPIO$n=1"
+        return 0
+    fi
+
+    # GPIO140 is intentionally owned by the DT gpio-hog in this firmware.
+    logger -t mcr202 "GPIO$n is not exportable; assuming boot firmware/DT owns it"
+    return 0
+}
+
+start() {
+    logger -t mcr202 "Ensuring physical Modem 1 power (GPIO140)"
+    set_gpio_high 140
+    sleep 5
+    logger -t mcr202 "Powering physical Modem 2 (GPIO141)"
+    set_gpio_high 141
+}
