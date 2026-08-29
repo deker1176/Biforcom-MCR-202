@@ -1,0 +1,18 @@
+--- a/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-neo.dts
++++ b/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-neo.dts
+@@ -48,6 +48,15 @@
+ 	};
+ };
+ 
++&pio {
++	mcr202_modem_power_hog: mcr202-modem-power-hog {
++		gpio-hog;
++		gpios = <4 12 GPIO_ACTIVE_HIGH>; /* PE12 / Linux GPIO140 */
++		output-high;
++		line-name = "mcr202-modem-power";
++	};
++};
++
+ &ehci0 {
+ 	status = "okay";
+ };
