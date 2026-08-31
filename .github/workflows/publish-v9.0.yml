@@ -1,4 +1,4 @@
-name: Publish Biforcom MCR-202 v9.0
+name: Publish Biforcom MCR-202 v9.1
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release-assets
-          gh run download 33248261464 \
+          gh run download 33406006842 \
             --repo deker1176/Biforcom-MCR-202 \
             --name openwrt-25.12.5-biforcom-mcr202 \
             --dir release-assets
@@ -47,24 +47,29 @@ jobs:
           IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
           SHA="$(sha256sum "$IMAGE" | awk '{print $1}')"
           cat > release-notes.md <<EOF
-          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9
+          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9.1
 
-          Готовый образ OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3), собранный из воспроизводимого проекта ветки \`openwrt-25.12.5\`.
+          Исправленная сборка OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3), собранная из ветки \`openwrt-25.12.5\`.
 
-          ### Основные изменения относительно v8.0
+          ### Что исправлено в v9.1
 
-          - обновление базовой системы с OpenWrt 25.12.0 до **OpenWrt 25.12.5**;
-          - ядро Linux **6.12.94**;
-          - сохранена поддержка четырёх Ethernet-портов в общем LAN-мосту;
-          - сохранена аппаратная последовательность питания двух LTE-модемов MCR-202: GPIO140/PE12 и GPIO141;
-          - добавлена русская локализация LuCI;
-          - добавлен **luci-app-5gmodem 2.4.38**;
-          - поддержка **Quectel EC25-EU**;
-          - поддержка **Quectel EC200A**;
-          - поддержка **MeigLink SLM750** через штатный патч OpenWrt qmi_wwan/option;
-          - включены QMI, MBIM, ModemManager, serial, CDC, RNDIS и usb-modeswitch компоненты;
-          - rootfs-раздел оставлен размером 1 ГБ;
-          - сборка выполняется автоматически через GitHub Actions.
+          - исправлен MCR-202 Device Tree patch для USB host контроллеров;
+          - исправлены hunk sizes патча и корректное включение USB1/USB2;
+          - сборка успешно завершена в GitHub Actions Run #5;
+          - сохранена аппаратная последовательность питания модемов: GPIO140/PE12 и GPIO141;
+          - сохранены четыре Ethernet-порта в общем LAN-мосту.
+
+          ### Основа и поддержка модемов
+
+          - OpenWrt **25.12.5**;
+          - Linux **6.12.94**;
+          - русская локализация LuCI;
+          - **luci-app-5gmodem 2.4.38**;
+          - Quectel **EC25-EU**;
+          - Quectel **EC200A**;
+          - MeigLink **SLM750**;
+          - QMI, MBIM, ModemManager, serial, CDC, RNDIS и usb-modeswitch;
+          - rootfs-раздел 1 ГБ.
 
           ### Файл прошивки
 
@@ -74,30 +79,30 @@ jobs:
 
           \`$SHA\`
 
-          Дополнительно приложены полный build config и файл \`SHA256SUMS\`.
+          Дополнительно приложены полный build config и \`SHA256SUMS\`.
 
           ### Установка
 
-          Образ предназначен для записи на microSD. Для первого теста рекомендуется использовать отдельную карту и не перезаписывать рабочую v8.0 до проверки Ethernet, обоих модемов и управления питанием на конкретной ревизии платы.
+          Образ предназначен для записи на microSD. Для первого теста рекомендуется использовать отдельную карту и сохранить рабочую v8.0 до проверки Ethernet, USB host, обоих модемов и управления питанием на реальном MCR-202.
           EOF
 
-      - name: Publish GitHub Release v9.0
+      - name: Publish GitHub Release v9.1
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v9.0 --repo deker1176/Biforcom-MCR-202 >/dev/null 2>&1; then
-            echo 'Release v9.0 already exists; uploading/replacing assets.'
-            gh release upload v9.0 release-assets/* \
+          if gh release view v9.1 --repo deker1176/Biforcom-MCR-202 >/dev/null 2>&1; then
+            echo 'Release v9.1 already exists; uploading/replacing assets.'
+            gh release upload v9.1 release-assets/* \
               --repo deker1176/Biforcom-MCR-202 \
               --clobber
-            gh release edit v9.0 \
+            gh release edit v9.1 \
               --repo deker1176/Biforcom-MCR-202 \
-              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9' \
+              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
               --notes-file release-notes.md
           else
-            gh release create v9.0 release-assets/* \
+            gh release create v9.1 release-assets/* \
               --repo deker1176/Biforcom-MCR-202 \
-              --target f2e756bef1558437fc423aef571deb09ee4331c8 \
-              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9' \
+              --target 8e3364ae4d056234cde863038efd5472205d16e2 \
+              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
               --notes-file release-notes.md
           fi
