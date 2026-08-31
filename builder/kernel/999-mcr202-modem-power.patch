@@ -1,6 +1,6 @@
 --- a/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-neo.dts
 +++ b/arch/arm/boot/dts/allwinner/sun8i-h3-nanopi-neo.dts
-@@ -48,6 +48,23 @@
+@@ -48,6 +48,27 @@
  	};
  };
  
@@ -14,7 +14,7 @@
 +};
 +
 +/* MCR-202 routes its internal LAN9514 hubs / modem slots through
-+ * the H3 USB1 and USB2 host controllers.  Stock NanoPi NEO leaves
++ * the H3 USB1 and USB2 host controllers. Stock NanoPi NEO leaves
 + * these controllers disabled, which makes LAN1/LAN2 and the first
 + * two onboard modem paths disappear completely. */
 +&ehci1 {
@@ -28,7 +28,7 @@
  &ehci0 {
  	status = "okay";
  };
-@@ -61,8 +78,16 @@
+@@ -61,8 +82,16 @@
  &ohci0 {
  	status = "okay";
  };
