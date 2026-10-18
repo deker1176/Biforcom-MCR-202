@@ -8,7 +8,16 @@ CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_luci-app-package-manager=y
 CONFIG_PACKAGE_luci-app-5gmodem=y
+CONFIG_PACKAGE_luci-app-openvpn=y
 CONFIG_LUCI_LANG_ru=y
+
+# OpenVPN is built into the firmware together with the exact kernel modules
+# for this custom kernel ABI. This avoids runtime APK failures when official
+# repositories do not provide matching kmods for the custom image.
+CONFIG_PACKAGE_openvpn-openssl=y
+CONFIG_PACKAGE_kmod-tun=y
+CONFIG_PACKAGE_kmod-ovpn-backports=y
+CONFIG_OPENVPN_openssl_ENABLE_DCO=y
 
 CONFIG_PACKAGE_kmod-phy-smsc=y
 CONFIG_PACKAGE_kmod-usb-net=y
