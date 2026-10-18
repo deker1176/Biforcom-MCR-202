@@ -1,4 +1,4 @@
-name: Publish Biforcom MCR-202 v9.0
+name: Publish Biforcom MCR-202 v9.0 test build
 
 on:
   workflow_dispatch:
@@ -19,12 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download successful Run #5 firmware artifact
+      - name: Download successful Run #8 firmware artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release-assets
-          gh run download 33406006842 \
+          gh run download 39162706336 \
             --repo deker1176/Biforcom-MCR-202 \
             --name openwrt-25.12.5-biforcom-mcr202 \
             --dir release-assets
@@ -42,34 +42,43 @@ jobs:
           echo "Actual:   $ACTUAL"
           test "$EXPECTED" = "$ACTUAL"
 
-      - name: Prepare corrected release notes
+      - name: Verify OpenVPN packages in final config
+        run: |
+          CFG='release-assets/openwrt-25.12.5-mcr202.config'
+          grep -q '^CONFIG_PACKAGE_openvpn-openssl=y$' "$CFG"
+          grep -q '^CONFIG_PACKAGE_luci-app-openvpn=y$' "$CFG"
+          grep -q '^CONFIG_PACKAGE_kmod-tun=y$' "$CFG"
+          grep -q '^CONFIG_PACKAGE_kmod-ovpn-backports=y$' "$CFG"
+          grep -q '^CONFIG_OPENVPN_openssl_ENABLE_DCO=y$' "$CFG"
+
+      - name: Prepare release notes
         run: |
           IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
           SHA="$(sha256sum "$IMAGE" | awk '{print $1}')"
           cat > release-notes.md <<EOF
-          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9
+          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9 test build / Run #8
 
-          Актуальная исправленная сборка OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3).
+          Актуальная тестовая сборка для Biforcom MCR-202 / NanoPi NEO (Allwinner H3).
 
-          ### Исправление от 31.08.2026
+          ### Изменения Run #8
 
-          - опубликован успешный GitHub Actions **Run #5**;
-          - исправлен MCR-202 Device Tree patch для USB host;
-          - исправлены hunk sizes DT-патча;
-          - корректно включены USB1/USB2;
-          - сохранена последовательность питания модемов GPIO140/PE12 → GPIO141;
-          - сохранены четыре Ethernet-порта в общем LAN-мосту.
+          - подтверждённый фикс холодного старта LTE: после загрузки прошивка ждёт появления QMI-устройства, даёт модему время и автоматически перезапускает QMI-интерфейсы;
+          - исправлен внешний feed luci-app-5gmodem: build-feed больше не должен попадать в runtime APK repositories как несуществующий `/modem/packages.adb`;
+          - встроен **openvpn-openssl**;
+          - встроен **luci-app-openvpn**;
+          - встроены совместимые с этим ядром **kmod-tun** и **kmod-ovpn-backports**;
+          - включён OpenVPN DCO;
+          - сохранены исправления USB1/USB2, LAN1/LAN2 и внутреннего подключения модемов;
+          - сохранена последовательность питания GPIO140/PE12 → GPIO141.
 
-          ### Состав
+          ### Основа
 
           - OpenWrt **25.12.5**;
           - Linux **6.12.94**;
           - русская LuCI;
-          - **luci-app-5gmodem 2.4.38**;
-          - Quectel EC25-EU;
-          - Quectel EC200A;
+          - luci-app-5gmodem;
+          - Quectel EC25-EU / EC200A;
           - MeigLink SLM750;
-          - QMI / MBIM / ModemManager / serial / CDC / RNDIS / usb-modeswitch;
           - rootfs 1 ГБ.
 
           ### Прошивка
@@ -82,10 +91,10 @@ jobs:
 
           В релиз также входят полный build config и \`SHA256SUMS\`.
 
-          Образ предназначен для microSD. Рабочую v8.0 рекомендуется сохранить до проверки USB host, Ethernet и обоих модемов на реальном MCR-202.
+          Это тестовый build. Рекомендуется сохранить рабочую microSD до проверки на реальном MCR-202.
           EOF
 
-      - name: Replace v9.0 release assets with successful Run #5 build
+      - name: Replace v9.0 release assets with Run #8 test build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -95,5 +104,5 @@ jobs:
             --clobber
           gh release edit v9.0 \
             --repo deker1176/Biforcom-MCR-202 \
-            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9 (Run #5 fixed)' \
+            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9 test build (Run #8)' \
             --notes-file release-notes.md
