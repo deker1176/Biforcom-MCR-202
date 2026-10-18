@@ -21,6 +21,13 @@ printf '\nsrc-git modem https://github.com/fildunsky/luci-app-5gmodem.git^%s\n' 
 ./scripts/feeds install -a
 ./scripts/feeds install -f luci-app-5gmodem
 
+# The external 5gmodem repository is only a build-time source. The package is
+# now installed as package/feeds/modem/luci-app-5gmodem, so remove the feed
+# from feeds.conf before the firmware's APK repository list is generated.
+# Otherwise OpenWrt creates an invalid runtime URL such as:
+#   .../packages/arm_cortex-a7_neon-vfpv4/modem/packages.adb
+sed -i '\|^src-git modem |d' feeds.conf
+
 # MCR-202 keeps the stock FriendlyARM NanoPi NEO target, but changes three
 # hardware-specific pieces: four-port LAN defaults, the U-Boot modem-power
 # sequence, and a DT gpio-hog that keeps PE12/GPIO140 high after Linux starts.
@@ -74,9 +81,21 @@ chmod 0755 \
 cp "$ROOT_DIR/builder/config.seed" .config
 make defconfig
 
-# Fail early if the requested external LuCI package was not selected.
+# Fail early if required packages were not selected.
 grep -q '^CONFIG_PACKAGE_luci-app-5gmodem=y$' .config || {
     echo 'ERROR: luci-app-5gmodem was not selected after make defconfig' >&2
+    exit 1
+}
+grep -q '^CONFIG_PACKAGE_openvpn-openssl=y$' .config || {
+    echo 'ERROR: openvpn-openssl was not selected after make defconfig' >&2
+    exit 1
+}
+grep -q '^CONFIG_PACKAGE_kmod-tun=y$' .config || {
+    echo 'ERROR: kmod-tun was not selected after make defconfig' >&2
+    exit 1
+}
+grep -q '^CONFIG_PACKAGE_kmod-ovpn-backports=y$' .config || {
+    echo 'ERROR: kmod-ovpn-backports was not selected after make defconfig' >&2
     exit 1
 }
 
