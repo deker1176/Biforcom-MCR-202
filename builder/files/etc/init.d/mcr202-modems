@@ -36,6 +36,49 @@ remove_invalid_modem_feed() {
     done
 }
 
+restart_firewall_after_qmi() {
+    # ifup only queues setup in netifd. Wait for the QMI L3 device to have
+    # IPv4, including addresses supplied by a dynamically named DHCP child.
+    pending="$*"
+    elapsed=0
+    ready=0
+    while [ "$elapsed" -lt 90 ]; do
+        pending=""
+        ready=0
+        for iface in "$@"; do
+            status="$(ifstatus "$iface" 2>/dev/null)"
+            up="$(printf '%s' "$status" | jsonfilter -e '@.up' 2>/dev/null)"
+            device="$(printf '%s' "$status" | jsonfilter -e '@.l3_device' 2>/dev/null)"
+            if [ "$up" = "true" ] && [ -n "$device" ] &&
+                ip -4 addr show dev "$device" scope global 2>/dev/null | grep -q 'inet '; then
+                ready=$((ready + 1))
+            else
+                pending="$pending $iface"
+            fi
+        done
+        [ -z "$pending" ] && break
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    if [ "$ready" -eq 0 ]; then
+        logger -t mcr202 "No restarted QMI interface has IPv4 after 90s; skipping firewall restart"
+        return 0
+    fi
+    [ -z "$pending" ] ||
+        logger -t mcr202 "QMI IPv4 wait timed out for:$pending; continuing with $ready ready interface(s)"
+
+    # Allow the DHCP child and its firewall hotplug updates to settle.
+    sleep 5
+    logger -t mcr202 "Restarting firewall after delayed QMI restart ($ready IPv4 interface(s) ready)"
+    if /etc/init.d/firewall restart; then
+        logger -t mcr202 "Firewall restart after QMI completed"
+    else
+        logger -t mcr202 "Firewall restart after QMI failed"
+        return 1
+    fi
+}
+
 delayed_qmi_restart() {
     # The internal modem can expose cdc-wdm before its QMI service is fully
     # ready. Two cold-boot tests showed that a delayed interface restart fixes
@@ -58,6 +101,7 @@ delayed_qmi_restart() {
     logger -t mcr202 "Waiting 10s for modem QMI initialization"
     sleep 10
 
+    restarted=""
     for iface in $(uci -q show network | sed -n "s/^network\.\([^.=]*\)\.proto='qmi'$/\1/p"); do
         [ "$(uci -q get network.$iface.auto)" = "0" ] && continue
         [ "$(uci -q get network.$iface.disabled)" = "1" ] && continue
@@ -65,8 +109,15 @@ delayed_qmi_restart() {
         logger -t mcr202 "Restarting QMI interface $iface after modem initialization"
         ifdown "$iface" 2>/dev/null || true
         sleep 2
-        ifup "$iface" 2>/dev/null || true
+        if ifup "$iface" 2>/dev/null; then
+            restarted="$restarted $iface"
+        else
+            logger -t mcr202 "Failed to request QMI restart for $iface"
+        fi
     done
+
+    [ -n "$restarted" ] || return 0
+    restart_firewall_after_qmi $restarted
 }
 
 start() {
