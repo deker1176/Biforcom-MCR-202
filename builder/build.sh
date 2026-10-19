@@ -99,6 +99,13 @@ grep -q '^CONFIG_PACKAGE_kmod-ovpn-backports=y$' .config || {
     exit 1
 }
 
+for package in kmod-inet-diag kmod-nft-tproxy; do
+    grep -q "^CONFIG_PACKAGE_${package}=y$" .config || {
+        echo "ERROR: $package (Podkop dependency) was not selected after make defconfig" >&2
+        exit 1
+    }
+done
+
 make download -j"$JOBS"
 make -j"$JOBS" || make -j1 V=s
 
