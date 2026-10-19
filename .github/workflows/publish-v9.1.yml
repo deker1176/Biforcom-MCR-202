@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Download successful Run #8 artifact
         env:
@@ -57,7 +55,7 @@ jobs:
         run: |
           IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
           SHA="$(sha256sum "$IMAGE" | awk '{print $1}')"
-          cat > release-notes.md <<EOF
+          cat > release-notes.md <<'EOF'
           ## Biforcom MCR-202 — OpenWrt 25.12.5 v9.1
 
           Актуальная тестовая сборка OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3), собранная в успешном GitHub Actions Run #8.
@@ -88,9 +86,9 @@ jobs:
           `openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz`
 
           SHA-256:
-
-          `$SHA`
-
+          EOF
+          printf '\n`%s`\n\n' "$SHA" >> release-notes.md
+          cat >> release-notes.md <<'EOF'
           В релиз также входят полный build config и `SHA256SUMS`.
 
           Это тестовый build. Перед проверкой рекомендуется сохранить рабочую microSD.
@@ -100,17 +98,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a v9.1 9bdc8beac4638053d18a3042a701806e4f3c629d -m 'Biforcom MCR-202 OpenWrt 25.12.5 v9.1'
-          git push origin refs/tags/v9.1
+          if gh api repos/deker1176/Biforcom-MCR-202/git/ref/tags/v9.1 >/dev/null 2>&1; then
+            echo 'Tag v9.1 already exists.'
+          else
+            gh api --method POST repos/deker1176/Biforcom-MCR-202/git/refs \
+              -f ref='refs/tags/v9.1' \
+              -f sha='9bdc8beac4638053d18a3042a701806e4f3c629d'
+          fi
 
       - name: Create GitHub Release v9.1
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v9.1 release-assets/* \
-            --repo deker1176/Biforcom-MCR-202 \
-            --verify-tag \
-            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
-            --notes-file release-notes.md
+          if gh release view v9.1 --repo deker1176/Biforcom-MCR-202 >/dev/null 2>&1; then
+            gh release upload v9.1 release-assets/* \
+              --repo deker1176/Biforcom-MCR-202 \
+              --clobber
+            gh release edit v9.1 \
+              --repo deker1176/Biforcom-MCR-202 \
+              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
+              --notes-file release-notes.md
+          else
+            gh release create v9.1 release-assets/* \
+              --repo deker1176/Biforcom-MCR-202 \
+              --verify-tag \
+              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
+              --notes-file release-notes.md
+          fi
