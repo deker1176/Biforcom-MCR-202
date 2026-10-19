@@ -1,0 +1,124 @@
+name: Publish Biforcom MCR-202 v9.2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - openwrt-25.12.5
+    paths:
+      - '.github/workflows/publish-v9.2.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download successful firmware artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh run download 39220205699 \
+            --repo deker1176/Biforcom-MCR-202 \
+            --name openwrt-25.12.5-biforcom-mcr202 \
+            --dir release-assets
+          ls -lh release-assets
+
+      - name: Verify firmware checksum
+        run: |
+          IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
+          SUMFILE='release-assets/SHA256SUMS'
+          test -f "$IMAGE"
+          test -f "$SUMFILE"
+          EXPECTED="$(awk 'NR==1 {print $1}' "$SUMFILE")"
+          ACTUAL="$(sha256sum "$IMAGE" | awk '{print $1}')"
+          echo "Expected: $EXPECTED"
+          echo "Actual:   $ACTUAL"
+          test "$EXPECTED" = "$ACTUAL"
+
+      - name: Verify required packages in final config
+        run: |
+          CONFIG='release-assets/openwrt-25.12.5-mcr202.config'
+          test -f "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_openvpn-openssl=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_luci-app-openvpn=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-tun=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-ovpn-backports=y$' "$CONFIG"
+          grep -q '^CONFIG_OPENVPN_openssl_ENABLE_DCO=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-inet-diag=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-nft-tproxy=y$' "$CONFIG"
+
+      - name: Prepare release notes
+        run: |
+          IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
+          SHA="$(sha256sum "$IMAGE" | awk '{print $1}')"
+          cat > release-notes.md <<'EOF'
+          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9.2
+
+          Тестовая сборка OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3), собранная из commit `977ac33c3388d5d9235ef9fd6d9ada1337f5fe3a`.
+
+          ### Изменения v9.2
+
+          - исправлена подтверждённая на реальном MCR-202 гонка firewall ↔ QMI при холодной загрузке;
+          - после delayed QMI restart прошивка ждёт реальный IPv4 на L3-устройстве и затем перезапускает firewall;
+          - больше не требуется вручную выполнять `service firewall restart` после factory reset/reboot;
+          - логика не привязана к динамическому имени `modem_4` и подходит для нескольких QMI-модемов;
+          - добавлены совместимые с ядром `kmod-inet-diag` и `kmod-nft-tproxy` для последующей установки Podkop/sing-box;
+          - сохранены OpenVPN OpenSSL, LuCI OpenVPN, `kmod-tun`, `kmod-ovpn-backports` и DCO;
+          - сохранены исправления USB1/USB2, LAN1/LAN2, внутренних модемов и последовательности питания GPIO140/PE12 → GPIO141;
+          - внешний build-feed luci-app-5gmodem не публикуется как runtime APK repository.
+
+          ### Основа
+
+          - OpenWrt **25.12.5**;
+          - Linux **6.12.94**;
+          - русская LuCI;
+          - luci-app-5gmodem;
+          - Quectel EC25-EU / EC200A;
+          - MeigLink SLM750;
+          - rootfs 1 ГБ.
+
+          ### Прошивка
+
+          `openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz`
+
+          SHA-256:
+          EOF
+          printf '\n`%s`\n\n' "$SHA" >> release-notes.md
+          cat >> release-notes.md <<'EOF'
+          В релиз также входят полный build config и `SHA256SUMS`.
+
+          Перед окончательным переносом изменений в `main` рекомендуется проверить холодную загрузку, LAN→LTE, оба модема и OpenVPN на реальном MCR-202.
+          EOF
+
+      - name: Move v9.2 tag to tested build commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method PATCH \
+            repos/deker1176/Biforcom-MCR-202/git/refs/tags/v9.2 \
+            -f sha='977ac33c3388d5d9235ef9fd6d9ada1337f5fe3a' \
+            -F force=true
+          TAG_SHA="$(gh api repos/deker1176/Biforcom-MCR-202/git/ref/tags/v9.2 --jq '.object.sha')"
+          echo "v9.2 -> $TAG_SHA"
+          test "$TAG_SHA" = '977ac33c3388d5d9235ef9fd6d9ada1337f5fe3a'
+
+      - name: Publish existing v9.2 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v9.2 --repo deker1176/Biforcom-MCR-202 >/dev/null
+          gh release upload v9.2 release-assets/* \
+            --repo deker1176/Biforcom-MCR-202 \
+            --clobber
+          gh release edit v9.2 \
+            --repo deker1176/Biforcom-MCR-202 \
+            --target release-v9.2 \
+            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.2' \
+            --notes-file release-notes.md
