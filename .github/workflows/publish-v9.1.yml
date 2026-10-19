@@ -94,34 +94,15 @@ jobs:
           Это тестовый build. Перед проверкой рекомендуется сохранить рабочую microSD.
           EOF
 
-      - name: Create v9.1 tag at Run #8 build commit
+      - name: Update existing GitHub Release v9.1
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh api repos/deker1176/Biforcom-MCR-202/git/ref/tags/v9.1 >/dev/null 2>&1; then
-            echo 'Tag v9.1 already exists.'
-          else
-            gh api --method POST repos/deker1176/Biforcom-MCR-202/git/refs \
-              -f ref='refs/tags/v9.1' \
-              -f sha='9bdc8beac4638053d18a3042a701806e4f3c629d'
-          fi
-
-      - name: Create GitHub Release v9.1
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view v9.1 --repo deker1176/Biforcom-MCR-202 >/dev/null 2>&1; then
-            gh release upload v9.1 release-assets/* \
-              --repo deker1176/Biforcom-MCR-202 \
-              --clobber
-            gh release edit v9.1 \
-              --repo deker1176/Biforcom-MCR-202 \
-              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
-              --notes-file release-notes.md
-          else
-            gh release create v9.1 release-assets/* \
-              --repo deker1176/Biforcom-MCR-202 \
-              --verify-tag \
-              --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
-              --notes-file release-notes.md
-          fi
+          gh release view v9.1 --repo deker1176/Biforcom-MCR-202 >/dev/null
+          gh release upload v9.1 release-assets/* \
+            --repo deker1176/Biforcom-MCR-202 \
+            --clobber
+          gh release edit v9.1 \
+            --repo deker1176/Biforcom-MCR-202 \
+            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
+            --notes-file release-notes.md
