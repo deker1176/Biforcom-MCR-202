@@ -1,0 +1,116 @@
+name: Publish Biforcom MCR-202 v9.1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - openwrt-25.12.5
+    paths:
+      - '.github/workflows/publish-v9.1.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful Run #8 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh run download 39162706336 \
+            --repo deker1176/Biforcom-MCR-202 \
+            --name openwrt-25.12.5-biforcom-mcr202 \
+            --dir release-assets
+          ls -lh release-assets
+
+      - name: Verify firmware checksum
+        run: |
+          IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
+          SUMFILE='release-assets/SHA256SUMS'
+          test -f "$IMAGE"
+          test -f "$SUMFILE"
+          EXPECTED="$(awk 'NR==1 {print $1}' "$SUMFILE")"
+          ACTUAL="$(sha256sum "$IMAGE" | awk '{print $1}')"
+          echo "Expected: $EXPECTED"
+          echo "Actual:   $ACTUAL"
+          test "$EXPECTED" = "$ACTUAL"
+
+      - name: Verify OpenVPN packages in final config
+        run: |
+          CONFIG='release-assets/openwrt-25.12.5-mcr202.config'
+          grep -q '^CONFIG_PACKAGE_openvpn-openssl=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_luci-app-openvpn=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-tun=y$' "$CONFIG"
+          grep -q '^CONFIG_PACKAGE_kmod-ovpn-backports=y$' "$CONFIG"
+          grep -q '^CONFIG_OPENVPN_openssl_ENABLE_DCO=y$' "$CONFIG"
+
+      - name: Prepare release notes
+        run: |
+          IMAGE='release-assets/openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz'
+          SHA="$(sha256sum "$IMAGE" | awk '{print $1}')"
+          cat > release-notes.md <<EOF
+          ## Biforcom MCR-202 — OpenWrt 25.12.5 v9.1
+
+          Актуальная тестовая сборка OpenWrt 25.12.5 для Biforcom MCR-202 / NanoPi NEO (Allwinner H3), собранная в успешном GitHub Actions Run #8.
+
+          ### Изменения v9.1
+
+          - исправлен холодный старт LTE: после загрузки система ждёт появления QMI-устройства и автоматически перезапускает QMI-интерфейсы;
+          - внешний build-feed luci-app-5gmodem больше не попадает в runtime APK repositories как несуществующий `modem/packages.adb`;
+          - встроен **openvpn-openssl**;
+          - встроен **luci-app-openvpn**;
+          - встроены совместимые с ядром **kmod-tun** и **kmod-ovpn-backports**;
+          - включён OpenVPN DCO;
+          - сохранены исправления USB1/USB2, LAN1/LAN2 и внутренних модемов;
+          - сохранена последовательность питания GPIO140/PE12 → GPIO141.
+
+          ### Основа
+
+          - OpenWrt **25.12.5**;
+          - Linux **6.12.94**;
+          - русская LuCI;
+          - luci-app-5gmodem;
+          - Quectel EC25-EU / EC200A;
+          - MeigLink SLM750;
+          - rootfs 1 ГБ.
+
+          ### Прошивка
+
+          `openwrt-25.12.5-biforcom-mcr202-squashfs-sdcard.img.gz`
+
+          SHA-256:
+
+          `$SHA`
+
+          В релиз также входят полный build config и `SHA256SUMS`.
+
+          Это тестовый build. Перед проверкой рекомендуется сохранить рабочую microSD.
+          EOF
+
+      - name: Create v9.1 tag at Run #8 build commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a v9.1 9bdc8beac4638053d18a3042a701806e4f3c629d -m 'Biforcom MCR-202 OpenWrt 25.12.5 v9.1'
+          git push origin refs/tags/v9.1
+
+      - name: Create GitHub Release v9.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v9.1 release-assets/* \
+            --repo deker1176/Biforcom-MCR-202 \
+            --verify-tag \
+            --title 'Biforcom MCR-202 — OpenWrt 25.12.5 v9.1' \
+            --notes-file release-notes.md
